@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="color-scheme" content="light">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tidal Shift — Conservation Activity Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Fredoka+One&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<style>
+  :root {
+    --terracotta: #C94F2C;
+    --sun:        #E07B3A;
+    --ocean:      #5BA3C9;
+    --deep:       #2E6E8E;
+    --foam:       #EAE6DC;
+    --sand:       #F5F1E8;
+    --ink:        #1A1A1A;
+    --wave:       #1E3A47;
+    --white:      #FFFFFF;
+    --green:      #4CAF7D;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; background:#F5F1E8; }
+  :root { color-scheme: light only; }
+  body { font-family:'DM Sans',sans-serif; background:#F5F1E8; color:var(--ink); overflow-x:hidden; }
+  @media (prefers-color-scheme:dark) { html,body { background:#F5F1E8 !important; color:#1A1A1A !important; } }
+
+  /* BUBBLES */
+  .bubbles-bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .bubble { position:absolute; border-radius:50%; opacity:0.07; animation:floatUp linear infinite; }
+  @keyframes floatUp {
+    0%   { transform:translateY(100vh) scale(0.8); opacity:0.04; }
+    50%  { opacity:0.09; }
+    100% { transform:translateY(-120px) scale(1.1); opacity:0; }
+  }
+
+  /* NAV */
+  nav {
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 48px;
+    background:rgba(245,241,232,0.96); backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(26,26,26,0.07);
+  }
+  .nav-logo { display:flex; align-items:center; gap:10px; text-decoration:none; }
+  .nav-logo-mark {
+    width:38px; height:38px; border-radius:50%;
+    background:linear-gradient(145deg,var(--terracotta),var(--sun));
+    display:flex; align-items:center; justify-content:center;
+    font-size:19px; box-shadow:0 2px 12px rgba(201,79,44,0.3);
+  }
+  .nav-logo-text { font-size:14px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--wave); }
+  .nav-back {
+    display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--terracotta);
+    text-decoration:none; padding:9px 20px; border-radius:100px;
+    border:2px solid var(--terracotta); transition:all 0.2s;
+  }
+  .nav-back:hover { background:var(--terracotta); color:white; }
+  @media (max-width:640px) { nav { padding:14px 20px; } }
+
+  /* HERO */
+  .hero {
+    min-height:48vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    text-align:center; padding:130px 24px 70px;
+    position:relative; overflow:hidden;
+    background:linear-gradient(180deg, var(--sand) 0%, #d4e8f0 55%, #5BA3C9 100%);
+  }
+  .hero-content { position:relative; z-index:2; max-width:680px; }
+  .hero-eyebrow {
+    font-size:11px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase;
+    color:var(--terracotta); margin-bottom:20px;
+    display:flex; align-items:center; gap:10px; justify-content:center;
+  }
+  .hero-eyebrow::before,.hero-eyebrow::after { content:''; width:28px; height:1px; background:var(--terracotta); }
+  .hero h1 {
+    font-family:'Playfair Display',serif; font-size:clamp(42px,7vw,78px);
+    font-weight:900; line-height:1.0; color:var(--wave); margin-bottom:20px;
+  }
+  .hero h1 em { font-style:italic; color:var(--terracotta); }
+  .hero-sub { font-size:16px; font-weight:300; line-height:1.75; color:var(--wave); opacity:0.8; max-width:500px; margin:0 auto; }
+  .hero-waves { position:absolute; bottom:0; left:0; right:0; height:100px; z-index:1; }
+
+  /* LAYOUT */
+  .page-wrap { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding:0 24px 80px; }
+  section { padding:64px 0; }
+  .section-label { font-size:11px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase; color:var(--terracotta); margin-bottom:10px; }
+  .section-title { font-family:'Playfair Display',serif; font-size:clamp(26px,3.5vw,42px); font-weight:700; line-height:1.12; color:var(--wave); margin-bottom:12px; }
+
+  /* STATS BAR */
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:40px; }
+  .stat-card {
+    background:var(--white); border:1px solid rgba(26,26,26,0.07);
+    border-radius:16px; padding:26px 20px; text-align:center;
+    box-shadow:0 4px 20px rgba(0,0,0,0.06); transition:transform 0.2s;
+  }
+  .stat-card:hover { transform:translateY(-3px); }
+  .stat-num { font-family:'Playfair Display',serif; font-size:2.2rem; font-weight:700; color:var(--terracotta); line-height:1; }
+  .stat-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--wave); opacity:0.55; margin-top:6px; }
+
+  /* TWO COL */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+  @media (max-width:860px) { .two-col { grid-template-columns:1fr; } }
+
+  /* CARD */
+  .card {
+    background:var(--white); border:1px solid rgba(26,26,26,0.07);
+    border-radius:20px; padding:36px;
+    box-shadow:0 8px 40px rgba(0,0,0,0.07); margin-bottom:24px;
+  }
+  .card h2 {
+    font-family:'Playfair Display',serif; font-size:1.4rem;
+    color:var(--wave); margin-bottom:26px;
+    display:flex; align-items:center; gap:10px;
+  }
+
+  /* FORM FIELDS */
+  .form-group { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
+  @media (max-width:500px) { .form-row { grid-template-columns:1fr; } }
+  label { font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--wave); opacity:0.7; }
+  input[type=text], input[type=email], input[type=number], textarea {
+    padding:13px 16px; border:2px solid rgba(30,58,71,0.12); border-radius:10px;
+    font-family:'DM Sans',sans-serif; font-size:0.95rem; color:var(--ink);
+    background:var(--sand); transition:border-color 0.2s, box-shadow 0.2s; width:100%;
+  }
+  input:focus, textarea:focus {
+    outline:none; border-color:var(--ocean);
+    box-shadow:0 0 0 3px rgba(91,163,201,0.18); background:var(--white);
+  }
+  textarea { resize:vertical; min-height:90px; }
+
+  /* ACTIVITY CHECKLIST */
+  .activity-list { display:flex; flex-direction:column; gap:10px; }
+  .activity-row {
+    display:grid; grid-template-columns:22px 1fr auto;
+    align-items:center; gap:14px;
+    padding:14px 18px; border-radius:12px;
+    border:2px solid rgba(30,58,71,0.1); background:var(--sand);
+    transition:all 0.2s; cursor:pointer;
+  }
+  .activity-row.checked {
+    border-color:var(--terracotta);
+    background:rgba(201,79,44,0.05);
+  }
+  .act-checkbox { display:none; }
+  .act-check-ui {
+    width:22px; height:22px; border-radius:6px;
+    border:2px solid rgba(30,58,71,0.25); background:var(--white);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:all 0.18s;
+    font-size:13px; color:white; cursor:pointer;
+  }
+  .activity-row.checked .act-check-ui {
+    background:var(--terracotta); border-color:var(--terracotta);
+  }
+  .act-label {
+    font-size:14px; font-weight:600; color:var(--wave);
+    display:flex; align-items:center; gap:9px; user-select:none;
+  }
+  .act-emoji { font-size:18px; flex-shrink:0; }
+  .act-qty-wrap { display:flex; align-items:center; gap:8px; }
+  .qty-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink); opacity:0.4; white-space:nowrap; }
+  .qty-input {
+    width:72px; padding:8px 10px; border:2px solid rgba(30,58,71,0.12);
+    border-radius:8px; font-family:'DM Sans',sans-serif; font-size:0.9rem;
+    color:var(--ink); background:var(--white); text-align:center; cursor:text;
+  }
+  .qty-input:focus { outline:none; border-color:var(--ocean); }
+  .act-qty-wrap.disabled { opacity:0.3; pointer-events:none; }
+
+  /* DIVIDER */
+  .form-divider { height:1px; background:rgba(30,58,71,0.08); margin:6px 0 22px; }
+
+  /* SUBMIT */
+  .btn-primary {
+    background:var(--terracotta); color:var(--white);
+    font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+    letter-spacing:0.07em; text-transform:uppercase;
+    padding:16px 36px; border-radius:100px; border:none; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px;
+    transition:transform 0.22s, background 0.22s; width:100%; justify-content:center;
+  }
+  .btn-primary:hover:not(:disabled) { transform:translateY(-2px); background:var(--sun); }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+  .form-error { font-size:13px; color:var(--terracotta); font-weight:600; margin-bottom:16px; display:none; }
+
+  /* FEED */
+  .feed-item {
+    display:flex; gap:14px; padding:18px 0;
+    border-bottom:1px solid rgba(26,26,26,0.07);
+    animation:fadeUp 0.38s ease;
+  }
+  .feed-item:last-child { border-bottom:none; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .feed-avatar {
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(145deg,var(--ocean),var(--deep));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka One',cursive; color:white; font-size:0.95rem;
+  }
+  .feed-body { flex:1; min-width:0; }
+  .feed-top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:7px; }
+  .feed-name { font-weight:700; color:var(--wave); font-size:14px; }
+  .feed-time { font-size:11px; color:var(--ink); opacity:0.38; margin-left:auto; white-space:nowrap; }
+  .feed-activities { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+  .feed-act-pill {
+    font-size:11px; font-weight:600; padding:3px 10px; border-radius:100px;
+    background:rgba(91,163,201,0.14); color:var(--deep);
+  }
+  .feed-notes { font-size:13px; color:var(--ink); opacity:0.62; line-height:1.55; margin-top:4px; }
+  .feed-meta { font-size:11px; color:var(--ink); opacity:0.4; margin-top:6px; }
+
+  /* LEADERBOARD */
+  .lb-row {
+    display:flex; align-items:center; gap:12px;
+    padding:13px 16px; border-radius:12px;
+    background:var(--sand); margin-bottom:8px;
+    border:2px solid transparent; transition:all 0.2s;
+  }
+  .lb-row:hover { transform:translateX(3px); }
+  .lb-rank { font-family:'Fredoka One',cursive; font-size:1.2rem; width:30px; text-align:center; flex-shrink:0; color:var(--terracotta); }
+  .lb-avatar {
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(145deg,var(--terracotta),var(--sun));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka One',cursive; color:white; font-size:0.85rem;
+  }
+  .lb-info { flex:1; min-width:0; }
+  .lb-name { font-weight:700; color:var(--wave); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lb-sub { font-size:11px; color:var(--ink); opacity:0.42; margin-top:1px; }
+  .lb-pts { font-family:'Fredoka One',cursive; font-size:1.3rem; color:var(--terracotta); flex-shrink:0; }
+  .lb-pts-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink); opacity:0.38; }
+
+  .empty { text-align:center; padding:36px 24px; color:var(--ink); opacity:0.38; font-size:14px; font-weight:600; }
+
+  /* TOAST */
+  #toast {
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    padding:14px 28px; border-radius:100px; font-size:14px; font-weight:700;
+    color:white; z-index:9999; display:none;
+    box-shadow:0 8px 32px rgba(0,0,0,0.18); animation:toastIn 0.3s ease;
+  }
+  @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+  /* SETUP NOTICE */
+  .setup-notice {
+    background:linear-gradient(135deg,rgba(201,79,44,0.08),rgba(91,163,201,0.08));
+    border:2px dashed rgba(201,79,44,0.3); border-radius:14px;
+    padding:18px 22px; margin-bottom:24px; font-size:13px; color:var(--ink); line-height:1.65;
+  }
+  .setup-notice strong { color:var(--terracotta); }
+  .setup-notice code { background:rgba(30,58,71,0.08); padding:2px 7px; border-radius:4px; font-size:12px; font-family:monospace; color:var(--wave); }
+
+  /* TOP FAMILIES STRIP */
+  .top-strip { display:flex; flex-direction:column; }
+  .top-strip-row {
+    display:flex; align-items:center; gap:16px;
+    padding:14px 0;
+    border-bottom:1px solid rgba(26,26,26,0.07);
+  }
+  .top-strip-row:last-child { border-bottom:none; }
+  .top-strip-rank { font-family:'Fredoka One',cursive; font-size:1.3rem; flex-shrink:0; width:34px; text-align:center; color:var(--terracotta); }
+  .top-strip-avatar {
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(145deg,var(--terracotta),var(--sun));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka One',cursive; color:white; font-size:0.95rem;
+  }
+  .top-strip-info { flex:1; min-width:0; }
+  .top-strip-name { font-weight:700; color:var(--wave); font-size:15px; }
+  .top-strip-sub  { font-size:12px; color:var(--ink); opacity:0.42; margin-top:2px; }
+  .top-strip-pts  { font-family:'Fredoka One',cursive; font-size:1.4rem; color:var(--terracotta); flex-shrink:0; }
+  .top-strip-unit { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink); opacity:0.38; flex-shrink:0; }
+
+  /* WEEKLY LEADER */
+  .weekly-wrap {
+    display:flex; align-items:center; gap:28px; flex-wrap:wrap;
+  }
+  .weekly-trophy {
+    font-size:4rem; flex-shrink:0;
+    animation: trophyPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes trophyPulse {
+    0%,100% { transform:scale(1) rotate(-4deg); }
+    50%      { transform:scale(1.12) rotate(4deg); }
+  }
+  .weekly-avatar {
+    width:72px; height:72px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(145deg,var(--terracotta),var(--sun));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka One',cursive; color:white; font-size:1.6rem;
+    box-shadow:0 6px 24px rgba(201,79,44,0.3);
+  }
+  .weekly-info { flex:1; min-width:0; }
+  .weekly-name {
+    font-family:'Playfair Display',serif; font-size:1.7rem; font-weight:700;
+    color:var(--wave); line-height:1.1;
+  }
+  .weekly-sub { font-size:13px; color:var(--ink); opacity:0.5; margin-top:4px; }
+  .weekly-stats { display:flex; gap:24px; margin-top:14px; flex-wrap:wrap; }
+  .weekly-stat { display:flex; flex-direction:column; align-items:flex-start; }
+  .weekly-stat-num {
+    font-family:'Fredoka One',cursive; font-size:1.6rem; color:var(--terracotta); line-height:1;
+  }
+  .weekly-stat-label {
+    font-size:10px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.1em; color:var(--ink); opacity:0.42; margin-top:3px;
+  }
+  .weekly-badge {
+    display:inline-flex; align-items:center; gap:6px;
+    background:linear-gradient(135deg,var(--terracotta),var(--sun));
+    color:white; font-size:11px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; padding:6px 16px; border-radius:100px;
+    margin-top:14px; box-shadow:0 3px 12px rgba(201,79,44,0.3);
+  }
+  .weekly-dates {
+    font-size:11px; color:var(--ink); opacity:0.38; margin-bottom:18px;
+    font-weight:600; letter-spacing:0.05em;
+  }
+
+  /* WAVE DIVIDER */
+  .wave-divider { overflow:hidden; line-height:0; }
+  .wave-divider svg { display:block; }
+
+  /* FADE IN */
+  .fade-in { opacity:0; transform:translateY(20px); transition:opacity 0.55s ease, transform 0.55s ease; }
+  .fade-in.visible { opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="bubbles-bg" id="bubbles"></div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="index.html">
+    <div class="nav-logo-mark">🌊</div>
+    <span class="nav-logo-text">Tidal Shift</span>
+  </a>
+  <a class="nav-back" href="index.html">← Back to Home</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-content fade-in">
+    <div class="hero-eyebrow">Community Impact</div>
+    <h1>Conservation<br><em>Activity Log</em></h1>
+    <p class="hero-sub">Log your ocean conservation activities and track what our community is achieving together.</p>
+  </div>
+  <div class="hero-waves">
+    <svg viewBox="0 0 1440 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width:100%;height:100px;">
+      <path d="M0,60 C200,100 500,20 800,65 C1050,95 1300,20 1440,50 L1440,100 L0,100 Z" fill="#F5F1E8"/>
+    </svg>
+  </div>
+</div>
+
+<!-- PAGE -->
+<div class="page-wrap">
+
+  <div class="setup-notice" id="setupNotice">
+    <strong>⚙️ One-time Firebase setup required:</strong> Replace the placeholder values in the <code>firebaseConfig</code> object in this file's &lt;script&gt; tag with your project credentials. Go to <strong>console.firebase.google.com</strong> → Project Settings → Your Apps → Add Web App → copy the config. Then delete this notice.
+  </div>
+
+  <!-- COMMUNITY STATS -->
+  <section>
+    <div class="section-label fade-in">Our Collective Wave</div>
+    <div class="section-title fade-in">Community Impact</div>
+    <div class="stats-grid">
+      <div class="stat-card fade-in"><div class="stat-num" id="statFamilies">—</div><div class="stat-label">Families</div></div>
+      <div class="stat-card fade-in"><div class="stat-num" id="statLogs">—</div><div class="stat-label">Activities Logged</div></div>
+      <div class="stat-card fade-in"><div class="stat-num" id="statPeople">—</div><div class="stat-label">People Involved</div></div>
+      <div class="stat-card fade-in"><div class="stat-num" id="statItems">—</div><div class="stat-label">Total Items Logged</div></div>
+    </div>
+  </section>
+
+  <!-- LEADERBOARD SECTION -->
+  <section style="padding-top:0; padding-bottom:52px;">
+    <div class="section-label fade-in">Leaderboard</div>
+    <div class="section-title fade-in" style="margin-bottom:32px;">Rankings &amp; Leaders</div>
+    <div class="two-col">
+
+      <!-- TOP FAMILIES & TEAMS -->
+      <div class="card fade-in" style="margin-bottom:0;">
+        <h2>🏆 Ocean Guardian Families &amp; Teams</h2>
+        <div id="topFamiliesStrip"><div class="empty">Loading…</div></div>
+      </div>
+
+      <!-- WEEKLY LEADER -->
+      <div class="card fade-in" id="weeklyLeaderCard" style="margin-bottom:0;">
+        <h2>⭐ Weekly Leader</h2>
+        <div id="weeklyLeaderContent"><div class="empty">Loading…</div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FORM + LEADERBOARD -->
+  <div class="two-col">
+
+    <!-- LOG FORM -->
+    <div>
+      <div class="section-label fade-in">Log Your Impact</div>
+      <div class="section-title fade-in" style="margin-bottom:28px;">Submit an Activity</div>
+
+      <!-- WHO ARE YOU -->
+      <div class="card fade-in">
+        <h2>👤 Who Are You?</h2>
+        <div class="form-row" style="margin-bottom:0;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="inputFamily">Family / Team Name</label>
+            <input type="text" id="inputFamily" placeholder="e.g. The Johnsons or Team Ocean" autocomplete="family-name"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="inputEmail">Email Address</label>
+            <input type="email" id="inputEmail" placeholder="email@example.com" autocomplete="email"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITIES -->
+      <div class="card fade-in">
+        <h2>🌊 What Did You Do?</h2>
+        <p style="font-size:13px;color:var(--ink);opacity:0.55;margin-bottom:20px;line-height:1.6;">Check each activity your family completed and enter the quantity.</p>
+
+        <div class="activity-list">
+
+          <div class="activity-row" id="row-0" onclick="toggleRow(0)">
+            <div class="act-check-ui" id="ui0"></div>
+            <input type="checkbox" class="act-checkbox" id="chk0">
+            <div class="act-label"><span class="act-emoji">🏖️</span> Beach Cleanup</div>
+            <div class="act-qty-wrap disabled" id="qty0">
+              <span class="qty-label">Bags</span>
+              <input type="number" class="qty-input" id="val0" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-1" onclick="toggleRow(1)">
+            <div class="act-check-ui" id="ui1"></div>
+            <input type="checkbox" class="act-checkbox" id="chk1">
+            <div class="act-label"><span class="act-emoji">🤿</span> Dive / Underwater Cleanup</div>
+            <div class="act-qty-wrap disabled" id="qty1">
+              <span class="qty-label">Bags</span>
+              <input type="number" class="qty-input" id="val1" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-2" onclick="toggleRow(2)">
+            <div class="act-check-ui" id="ui2"></div>
+            <input type="checkbox" class="act-checkbox" id="chk2">
+            <div class="act-label"><span class="act-emoji">🏞️</span> Waterway / River Cleanup</div>
+            <div class="act-qty-wrap disabled" id="qty2">
+              <span class="qty-label">Bags</span>
+              <input type="number" class="qty-input" id="val2" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-3" onclick="toggleRow(3)">
+            <div class="act-check-ui" id="ui3"></div>
+            <input type="checkbox" class="act-checkbox" id="chk3">
+            <div class="act-label"><span class="act-emoji">🐢</span> Wildlife Monitoring</div>
+            <div class="act-qty-wrap disabled" id="qty3">
+              <span class="qty-label">Species</span>
+              <input type="number" class="qty-input" id="val3" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-4" onclick="toggleRow(4)">
+            <div class="act-check-ui" id="ui4"></div>
+            <input type="checkbox" class="act-checkbox" id="chk4">
+            <div class="act-label"><span class="act-emoji">🪸</span> Habitat Restoration</div>
+            <div class="act-qty-wrap disabled" id="qty4">
+              <span class="qty-label">Hours</span>
+              <input type="number" class="qty-input" id="val4" min="0" step="0.5" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-5" onclick="toggleRow(5)">
+            <div class="act-check-ui" id="ui5"></div>
+            <input type="checkbox" class="act-checkbox" id="chk5">
+            <div class="act-label"><span class="act-emoji">📢</span> Education &amp; Outreach</div>
+            <div class="act-qty-wrap disabled" id="qty5">
+              <span class="qty-label">People</span>
+              <input type="number" class="qty-input" id="val5" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-6" onclick="toggleRow(6)">
+            <div class="act-check-ui" id="ui6"></div>
+            <input type="checkbox" class="act-checkbox" id="chk6">
+            <div class="act-label"><span class="act-emoji">♻️</span> New Eco-Friendly / Reusable Item</div>
+            <div class="act-qty-wrap disabled" id="qty6">
+              <span class="qty-label">Items</span>
+              <input type="number" class="qty-input" id="val6" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-7" onclick="toggleRow(7)">
+            <div class="act-check-ui" id="ui7"></div>
+            <input type="checkbox" class="act-checkbox" id="chk7">
+            <div class="act-label"><span class="act-emoji">👕</span> Clothes Donated / Repurposed</div>
+            <div class="act-qty-wrap disabled" id="qty7">
+              <span class="qty-label">Items</span>
+              <input type="number" class="qty-input" id="val7" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+          <div class="activity-row" id="row-8" onclick="toggleRow(8)">
+            <div class="act-check-ui" id="ui8"></div>
+            <input type="checkbox" class="act-checkbox" id="chk8">
+            <div class="act-label"><span class="act-emoji">🤝</span> Community Pledge Drive</div>
+            <div class="act-qty-wrap disabled" id="qty8">
+              <span class="qty-label">Pledges</span>
+              <input type="number" class="qty-input" id="val8" min="0" placeholder="0" onclick="e=>e.stopPropagation()">
+            </div>
+          </div>
+
+        </div>
+
+        <div class="form-divider" style="margin-top:22px;"></div>
+
+        <!-- People -->
+        <div class="form-group">
+          <label for="inputPeople">How many people were involved?</label>
+          <input type="number" id="inputPeople" min="1" step="1" placeholder="e.g. 4" style="max-width:180px;"/>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group" style="margin-bottom:22px;">
+          <label for="inputNotes">Notes</label>
+          <textarea id="inputNotes" placeholder="Share what you saw, where you went, or any highlights from your activity…"></textarea>
+        </div>
+
+        <div class="form-error" id="formError"></div>
+
+        <button class="btn-primary" id="submitBtn" onclick="submitActivity()">
+          Log Our Activity 🌊
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT: ACTIVITY FEED -->
+    <div>
+      <div class="section-label fade-in">Recent Activity</div>
+      <div class="section-title fade-in" style="margin-bottom:26px;">Activity Feed</div>
+      <div class="card fade-in">
+        <div id="activityFeed"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="wave-divider" style="background:var(--foam);">
+  <svg viewBox="0 0 1440 80" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width:100%;height:80px;">
+    <path d="M0,30 C400,80 800,0 1200,50 C1320,70 1400,30 1440,20 L1440,80 L0,80 Z" fill="var(--foam)"/>
+  </svg>
+</div>
+<footer style="background:var(--foam);border-top:1px solid rgba(26,26,26,0.09);padding:44px 24px 28px;">
+  <div style="max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;align-items:center;padding-bottom:24px;border-bottom:1px solid rgba(26,26,26,0.1);">
+    <div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:20px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--wave);">Tidal Shift</div>
+      <div style="font-size:11px;color:var(--terracotta);letter-spacing:0.15em;text-transform:uppercase;margin-top:3px;">— Better Habits · Cleaner Oceans —</div>
+    </div>
+    <a href="index.html" style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--terracotta);text-decoration:none;padding:9px 20px;border-radius:100px;border:2px solid var(--terracotta);transition:all 0.2s;">← Back to Main Site</a>
+  </div>
+  <div style="max-width:1100px;margin:18px auto 0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <p style="font-size:12px;color:var(--ink);opacity:0.4;">© 2025 Tidal Shift. A nonprofit organization.</p>
+    <p style="font-size:12px;color:var(--ink);opacity:0.4;">Better Habits · Cleaner Oceans</p>
+  </div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════
+// 🔥 FIREBASE CONFIG — replace with yours
+// console.firebase.google.com →
+//   Project Settings → Your Apps → Config
+// ════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "REPLACE_WITH_YOUR_API_KEY",
+  authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+  projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
+  storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+  appId:             "REPLACE_WITH_YOUR_APP_ID"
+};
+
+// Activity definitions — label + unit shown next to qty input
+const ACTIVITIES = [
+  { key:'beachCleanup',    label:'Beach Cleanup',                          unit:'Bags'    },
+  { key:'diveCleanup',     label:'Dive / Underwater Cleanup',              unit:'Bags'    },
+  { key:'waterwayCleanup', label:'Waterway / River Cleanup',               unit:'Bags'    },
+  { key:'wildlifeMonitor', label:'Wildlife Monitoring',                    unit:'Species' },
+  { key:'habitatRestore',  label:'Habitat Restoration',                    unit:'Hours'   },
+  { key:'education',       label:'Education & Outreach',                   unit:'People'  },
+  { key:'ecoItems',        label:'New Eco-Friendly / Reusable Item',       unit:'Items'   },
+  { key:'clothesDonate',   label:'Clothes Donated / Repurposed',           unit:'Items'   },
+  { key:'pledgeDrive',     label:'Community Pledge Drive',                 unit:'Pledges' },
+];
+
+// ── INIT FIREBASE ──
+let db = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  document.getElementById('setupNotice').style.display = 'none';
+} catch(e) {
+  console.warn('Firebase not configured — running in demo mode.');
+}
+
+// ── BUBBLES ──
+(function(){
+  const bg = document.getElementById('bubbles');
+  const c  = ['#5BA3C9','#C94F2C','#2E6E8E'];
+  for (let i=0;i<14;i++){
+    const b=document.createElement('div'); b.className='bubble';
+    const sz=Math.random()*80+20;
+    b.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;background:${c[i%3]};animation-duration:${Math.random()*18+12}s;animation-delay:${Math.random()*12}s;`;
+    bg.appendChild(b);
+  }
+})();
+
+// ── TOGGLE ACTIVITY ROW ──
+function toggleRow(i, fromInput) {
+  // Don't toggle if user clicked inside the qty input
+  if (fromInput) return;
+  const chk   = document.getElementById('chk'+i);
+  const row   = document.getElementById('row-'+i);
+  const qty   = document.getElementById('qty'+i);
+  const ui    = document.getElementById('ui'+i);
+  const input = document.getElementById('val'+i);
+
+  chk.checked = !chk.checked;
+
+  if (chk.checked) {
+    row.classList.add('checked');
+    qty.classList.remove('disabled');
+    ui.textContent = '✓';
+    setTimeout(()=>input.focus(),50);
+  } else {
+    row.classList.remove('checked');
+    qty.classList.add('disabled');
+    ui.textContent = '';
+    input.value = '';
+  }
+}
+
+// Prevent qty input clicks from toggling the row
+document.addEventListener('DOMContentLoaded', () => {
+  for (let i=0;i<ACTIVITIES.length;i++){
+    document.getElementById('val'+i).addEventListener('click', e=>e.stopPropagation());
+    document.getElementById('val'+i).addEventListener('mousedown', e=>e.stopPropagation());
+  }
+
+  if (db) {
+    db.collection('activities').orderBy('createdAt','desc').limit(40)
+      .onSnapshot(snap => {
+        const docs = snap.docs.map(d=>({id:d.id,...d.data()}));
+        renderFeed(docs);
+        updateStats(docs);
+        renderWeeklyLeader(docs);
+      });
+    loadLeaderboard();
+  } else {
+    renderFeed(demoFeed());
+    renderTopStrip(demoBoard());
+    renderWeeklyLeader(demoFeed());
+    setStats({families:18,logs:64,people:142,items:1830});
+  }
+});
+
+// ── HELPERS ──
+function initials(name){
+  return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+function timeAgo(ts){
+  if(!ts) return '';
+  const ms=Date.now()-(ts.toMillis?ts.toMillis():ts);
+  const m=Math.floor(ms/60000);
+  if(m<1)  return 'just now';
+  if(m<60) return m+'m ago';
+  const h=Math.floor(m/60);
+  if(h<24) return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+function toast(msg,color){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=color||'var(--green)';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',3400);
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showErr(msg){
+  const el=document.getElementById('formError');
+  el.textContent='⚠️ '+msg; el.style.display='block';
+}
+
+// ── SUBMIT ──
+async function submitActivity(){
+  const familyName = document.getElementById('inputFamily').value.trim();
+  const email      = document.getElementById('inputEmail').value.trim();
+  const people     = parseInt(document.getElementById('inputPeople').value)||0;
+  const notes      = document.getElementById('inputNotes').value.trim();
+  const errEl      = document.getElementById('formError');
+  errEl.style.display='none';
+
+  if(!familyName)                { showErr('Please enter your family name.'); return; }
+  if(!email||!email.includes('@')){ showErr('Please enter a valid email address.'); return; }
+
+  // Collect checked activities with quantities
+  const activities=[];
+  let totalItems=0;
+  for(let i=0;i<ACTIVITIES.length;i++){
+    if(document.getElementById('chk'+i).checked){
+      const qty=parseFloat(document.getElementById('val'+i).value)||0;
+      activities.push({...ACTIVITIES[i], quantity:qty});
+      totalItems+=qty;
+    }
+  }
+
+  if(activities.length===0){ showErr('Please check at least one activity.'); return; }
+  if(!people||people<1)    { showErr('Please enter how many people were involved.'); return; }
+
+  const btn=document.getElementById('submitBtn');
+  btn.textContent='Saving… 🌊'; btn.disabled=true;
+
+  const entry={
+    familyName, email, people, notes,
+    activities, totalItems,
+    createdAt: db ? firebase.firestore.FieldValue.serverTimestamp() : {toMillis:()=>Date.now()}
+  };
+
+  if(db){
+    try{
+      await db.collection('activities').add(entry);
+      await upsertFamily({familyName, email, people, totalItems});
+      toast('✓ Logged — thank you, '+familyName+'!','var(--green)');
+      resetForm();
+    }catch(e){
+      console.error(e);
+      showErr('Could not save. Please try again.');
+    }
+  } else {
+    toast('✓ Demo mode — activity would be saved to Firebase.','var(--ocean)');
+    resetForm();
+  }
+
+  btn.textContent='Log Our Activity 🌊'; btn.disabled=false;
+}
+
+function resetForm(){
+  document.getElementById('inputPeople').value='';
+  document.getElementById('inputNotes').value='';
+  for(let i=0;i<ACTIVITIES.length;i++){
+    document.getElementById('chk'+i).checked=false;
+    document.getElementById('row-'+i).classList.remove('checked');
+    document.getElementById('qty'+i).classList.add('disabled');
+    document.getElementById('ui'+i).textContent='';
+    document.getElementById('val'+i).value='';
+  }
+}
+
+// ── UPSERT FAMILY ──
+async function upsertFamily({familyName,email,people,totalItems}){
+  if(!db) return;
+  const id=email.toLowerCase().replace(/[^a-z0-9]/g,'_');
+  const ref=db.collection('families').doc(id);
+  try{
+    const doc=await ref.get();
+    if(doc.exists){
+      await ref.update({
+        familyName,
+        totalPeople: firebase.firestore.FieldValue.increment(people),
+        totalItems:  firebase.firestore.FieldValue.increment(totalItems),
+        totalLogs:   firebase.firestore.FieldValue.increment(1),
+        lastActive:  firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await ref.set({
+        familyName,email,
+        totalPeople:people, totalItems, totalLogs:1,
+        joinedAt:  firebase.firestore.FieldValue.serverTimestamp(),
+        lastActive:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }catch(e){console.error(e);}
+}
+
+function renderTopStrip(entries){
+  const el=document.getElementById('topFamiliesStrip');
+  if(!el) return;
+  if(!entries.length){el.innerHTML='<div class="empty">No entries yet — be the first! 🌊</div>';return;}
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML='<div class="top-strip">'+entries.slice(0,10).map((e,i)=>`
+    <div class="top-strip-row">
+      <div class="top-strip-rank">${i<3?medals[i]:i+1}</div>
+      <div class="top-strip-avatar">${initials(e.familyName)}</div>
+      <div class="top-strip-info">
+        <div class="top-strip-name">${escHtml(e.familyName)}</div>
+        <div class="top-strip-sub">${e.totalLogs||1} log${e.totalLogs!==1?'s':''} &nbsp;·&nbsp; ${e.totalPeople||0} people involved</div>
+      </div>
+      <div class="top-strip-pts">${(e.totalItems||0).toLocaleString()}</div>
+      <div class="top-strip-unit">items</div>
+    </div>`).join('')+'</div>';
+}
+
+
+function renderWeeklyLeader(entries){
+  const el = document.getElementById('weeklyLeaderContent');
+  if (!el) return;
+
+  // Filter to activities logged in the current week (Mon–Sun)
+  const now = Date.now();
+  const day = new Date().getDay(); // 0=Sun
+  const msSinceMonday = ((day === 0 ? 6 : day - 1)) * 86400000;
+  const todayMidnight = now - (now % 86400000);
+  const weekStart = todayMidnight - msSinceMonday;
+
+  // Tally items per family for this week
+  const tally = {};
+  entries.forEach(e => {
+    const ts = e.createdAt ? (e.createdAt.toMillis ? e.createdAt.toMillis() : e.createdAt) : 0;
+    if (ts >= weekStart) {
+      const key = e.email || e.familyName;
+      if (!tally[key]) tally[key] = { familyName: e.familyName, email: e.email, weekItems: 0, weekLogs: 0, weekPeople: 0 };
+      tally[key].weekItems  += (e.totalItems || 0);
+      tally[key].weekLogs   += 1;
+      tally[key].weekPeople += (e.people || 0);
+    }
+  });
+
+  const ranked = Object.values(tally).sort((a,b) => b.weekItems - a.weekItems);
+
+  // Week label
+  const weekStartDate = new Date(weekStart);
+  const weekEndDate   = new Date(weekStart + 6 * 86400000);
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const weekLabel = fmt(weekStartDate) + ' – ' + fmt(weekEndDate);
+
+  if (!ranked.length) {
+    el.innerHTML = `
+      <div class="weekly-dates">Week of ${weekLabel}</div>
+      <div class="empty" style="padding:20px 0;">No activities logged this week yet — yours could be first! 🌊</div>`;
+    return;
+  }
+
+  const w = ranked[0];
+  el.innerHTML = `
+    <div class="weekly-dates">Week of ${weekLabel}</div>
+    <div class="weekly-wrap">
+      <div class="weekly-trophy">🏅</div>
+      <div class="weekly-avatar">${initials(w.familyName)}</div>
+      <div class="weekly-info">
+        <div class="weekly-name">${escHtml(w.familyName)}</div>
+        <div class="weekly-sub">Leading this week's conservation effort</div>
+        <div class="weekly-stats">
+          <div class="weekly-stat">
+            <div class="weekly-stat-num">${w.weekItems.toLocaleString()}</div>
+            <div class="weekly-stat-label">Items This Week</div>
+          </div>
+          <div class="weekly-stat">
+            <div class="weekly-stat-num">${w.weekLogs}</div>
+            <div class="weekly-stat-label">Activities Logged</div>
+          </div>
+          <div class="weekly-stat">
+            <div class="weekly-stat-num">${w.weekPeople}</div>
+            <div class="weekly-stat-label">People Involved</div>
+          </div>
+        </div>
+        <div class="weekly-badge">⭐ This Week's Leader</div>
+      </div>
+    </div>
+    ${ranked.length > 1 ? `
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(26,26,26,0.07);font-size:11px;font-weight:700;color:var(--ink);opacity:0.4;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Also Active This Week</div>
+      ${ranked.slice(1,4).map((r,i)=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(26,26,26,0.05);">
+          <div style="font-family:'Fredoka One',cursive;font-size:1rem;color:var(--terracotta);width:22px;text-align:center;">${i+2}</div>
+          <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(145deg,var(--ocean),var(--deep));display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;color:white;font-size:0.85rem;flex-shrink:0;">${initials(r.familyName)}</div>
+          <div style="flex:1;font-weight:700;color:var(--wave);font-size:13px;">${escHtml(r.familyName)}</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--terracotta);">${r.weekItems.toLocaleString()}</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink);opacity:0.38;">items</div>
+        </div>`).join('')}` : ''}`;
+}
+
+function renderFeed(entries){
+  const el=document.getElementById('activityFeed');
+  if(!entries.length){el.innerHTML='<div class="empty">No activities yet — be the first! 🌊</div>';return;}
+  el.innerHTML=entries.slice(0,20).map(e=>{
+    const pills=(e.activities||[]).map(a=>
+      `<span class="feed-act-pill">${escHtml(a.label)} <strong>×${a.quantity||0} ${escHtml(a.unit||'')}</strong></span>`
+    ).join('');
+    return `
+      <div class="feed-item">
+        <div class="feed-avatar">${initials(e.familyName)}</div>
+        <div class="feed-body">
+          <div class="feed-top">
+            <span class="feed-name">${escHtml(e.familyName)}</span>
+            <span class="feed-time">${timeAgo(e.createdAt)}</span>
+          </div>
+          <div class="feed-activities">${pills}</div>
+          ${e.notes?`<div class="feed-notes">"${escHtml(e.notes)}"</div>`:''}
+          <div class="feed-meta">👥 ${e.people||1} people involved</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── LEADERBOARD ──
+async function loadLeaderboard(){
+  if(!db) return;
+  try{
+    const snap=await db.collection('families').orderBy('totalItems','desc').limit(10).get();
+    const data=snap.docs.map(d=>d.data());
+    renderTopStrip(data);
+  }catch(e){console.error(e);}
+}
+
+// ── STATS ──
+function updateStats(docs){
+  const families=new Set(docs.map(d=>d.email)).size;
+  const people=docs.reduce((s,d)=>s+(d.people||0),0);
+  const items=docs.reduce((s,d)=>s+(d.totalItems||0),0);
+  setStats({families,logs:docs.length,people,items});
+}
+function setStats({families,logs,people,items}){
+  document.getElementById('statFamilies').textContent=families.toLocaleString();
+  document.getElementById('statLogs').textContent=logs.toLocaleString();
+  document.getElementById('statPeople').textContent=people.toLocaleString();
+  document.getElementById('statItems').textContent=items.toLocaleString();
+}
+
+// ── DEMO DATA ──
+function demoFeed(){
+  return [
+    {familyName:'The Johnsons',email:'j@j.com',people:5,notes:'Kids loved counting the sea turtles!',activities:[{label:'Beach Cleanup',unit:'Bags',quantity:8},{label:'Wildlife Monitoring',unit:'Species',quantity:3}],totalItems:11,createdAt:{toMillis:()=>Date.now()-3600000}},
+    {familyName:'The Nguyens', email:'n@n.com',people:3,notes:'Found mostly bottle caps near the pier.',activities:[{label:'Beach Cleanup',unit:'Bags',quantity:12}],totalItems:12,createdAt:{toMillis:()=>Date.now()-86400000}},
+    {familyName:'The Martins', email:'m@m.com',people:2,notes:'Sampled 4 sites along the marsh edge.',activities:[{label:'Water Quality Sampling',unit:'Samples',quantity:4},{label:'Habitat Restoration',unit:'Hours',quantity:2}],totalItems:6,createdAt:{toMillis:()=>Date.now()-172800000}},
+  ];
+}
+function demoBoard(){
+  return [
+    {familyName:'The Johnsons',totalItems:148,totalLogs:9, totalPeople:32},
+    {familyName:'The Nguyens', totalItems:95, totalLogs:6, totalPeople:18},
+    {familyName:'The Martins', totalItems:72, totalLogs:5, totalPeople:10},
+    {familyName:'The Lees',    totalItems:53, totalLogs:4, totalPeople:8 },
+  ];
+}
+
+// ── FADE IN ──
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');});
+},{threshold:0.1});
+document.querySelectorAll('.fade-in').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
